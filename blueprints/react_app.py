@@ -351,6 +351,12 @@ def react_volsurface():
     return serve_react_app()
 
 
+# Option Safety Check - pre-trade IV crush / theta check
+@react_bp.route("/optionsafety")
+def react_optionsafety():
+    return serve_react_app()
+
+
 # GEX Dashboard - Gamma Exposure analysis
 @react_bp.route("/gex")
 def react_gex():

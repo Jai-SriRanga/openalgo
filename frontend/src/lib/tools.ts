@@ -68,6 +68,13 @@ export const tools: Tool[] = [
     color: 'bg-violet-500',
   },
   {
+    title: 'Option Safety Check',
+    description:
+      'Before you buy or sell an option: will it still pay if your view is right? IV crush, theta, break-even move and a P&L map',
+    href: '/optionsafety',
+    color: 'bg-red-500',
+  },
+  {
     title: 'OI Tracker',
     description: 'Open Interest analysis with CE/PE OI bars, PCR overlay, and ATM strike marker',
     href: '/oitracker',

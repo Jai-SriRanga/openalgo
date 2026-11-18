@@ -77,6 +77,7 @@ const MaxPain = lazy(() => import('@/pages/MaxPain'))
 const StraddleChart = lazy(() => import('@/pages/StraddleChart'))
 const CustomStraddle = lazy(() => import('@/pages/CustomStraddle'))
 const VolSurface = lazy(() => import('@/pages/VolSurface'))
+const OptionSafety = lazy(() => import('@/pages/OptionSafety'))
 const GEXDashboard = lazy(() => import('@/pages/GEXDashboard'))
 const StrikeProfile = lazy(() => import('@/pages/StrikeProfile'))
 const IVSmile = lazy(() => import('@/pages/IVSmile'))
@@ -238,6 +239,7 @@ function App() {
                 <Route path="/straddle" element={<StraddleChart />} />
                 <Route path="/straddlepnl" element={<CustomStraddle />} />
                 <Route path="/volsurface" element={<VolSurface />} />
+                <Route path="/optionsafety" element={<OptionSafety />} />
                 <Route path="/gex" element={<GEXDashboard />} />
                 <Route path="/strikeprofile" element={<StrikeProfile />} />
                 <Route path="/ivsmile" element={<IVSmile />} />

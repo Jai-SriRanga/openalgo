@@ -114,6 +114,7 @@ from blueprints.telegram import telegram_bp  # Import the telegram blueprint
 from blueprints.traffic import traffic_bp  # Import the traffic blueprint
 from blueprints.tv_json import tv_json_bp
 from blueprints.vol_surface import vol_surface_bp  # Import the vol surface blueprint
+from blueprints.option_safety import option_safety_bp  # Import the option safety check blueprint
 from blueprints.watchlist import watchlist_bp  # Import the charting watchlist blueprint
 from blueprints.websocket_example import websocket_bp  # Import the websocket example blueprint
 from blueprints.whatsapp import whatsapp_bp  # Import the WhatsApp blueprint
@@ -347,6 +348,7 @@ def create_app():
     app.register_blueprint(strategy_chart_bp)  # Register strategy chart blueprint
     app.register_blueprint(custom_straddle_bp)  # Register custom straddle blueprint
     app.register_blueprint(vol_surface_bp)  # Register vol surface blueprint
+    app.register_blueprint(option_safety_bp)  # Register option safety check blueprint
     app.register_blueprint(gex_bp)  # Register GEX blueprint
     app.register_blueprint(strike_profile_bp)  # Register Strike Profile blueprint
     app.register_blueprint(ivsmile_bp)  # Register IV Smile blueprint
