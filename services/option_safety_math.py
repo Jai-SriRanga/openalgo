@@ -388,12 +388,18 @@ def build_verdict(
     priced_move_hold: float | None = None,
     quote_stale: bool = False,
     spread_pct: float | None = None,
+    decay_cost_hold: float | None = None,
+    held_to_expiry: bool = False,
+    history_horizon_days: int | None = None,
 ) -> Verdict:
     """Turn the numbers into plain-language traffic lights.
 
     `implied_move` is the move the ATM straddle prices by expiry;
     `priced_move_hold` is the part of it that falls inside the holding period
     (event included), which is what a target over that period competes with.
+    `decay_cost_hold` is what time decay alone takes from the option (per unit,
+    model price) over the holding period if nothing moves; `history_horizon_days`
+    is the span the history check actually measured, in trading days.
     """
     buyer = side.upper() == "BUY"
     signals: list[Signal] = []
@@ -527,6 +533,7 @@ def build_verdict(
         lvl = AMBER
     else:
         lvl = GREEN
+    pnl_level = lvl
     crush_note = (
         f" Without the IV drop it would be {pct_nc:+.1f}% -- the difference is the crush."
         if abs(pct - pct_nc) >= 1
@@ -547,37 +554,68 @@ def build_verdict(
 
     # 6. How often has the underlying actually made the breakeven move?
     if hit_rate_pct is not None and breakeven_pct is not None:
+        span = history_horizon_days or max(1, round(holding_days))
+        within = f"within {span} trading day{'s' if span != 1 else ''}"
+        if holding_days < span:
+            within += (
+                " (daily closes can only measure whole days, so a move needed within hours "
+                "happens less often than this)"
+                if buyer
+                else " (daily closes can only measure whole days, so over a shorter hold this "
+                "move happens less often)"
+            )
         if buyer:
             lvl = RED if hit_rate_pct < 15 else AMBER if hit_rate_pct < 30 else GREEN
             detail = (
-                f"Over the last year the underlying moved {breakeven_pct:+.2f}% or more within "
-                f"{holding_days:g} trading day(s) on {hit_rate_pct:.0f}% of occasions."
+                f"Over the last year the underlying moved {breakeven_pct:+.2f}% or more {within} on "
+                f"{hit_rate_pct:.0f}% of occasions."
             )
         else:
             lvl = GREEN if hit_rate_pct < 10 else AMBER if hit_rate_pct < 25 else RED
             detail = (
-                f"Over the last year the underlying moved {breakeven_pct:+.2f}% or more against this position within "
-                f"{holding_days:g} trading day(s) on {hit_rate_pct:.0f}% of occasions."
+                f"Over the last year the underlying moved {breakeven_pct:+.2f}% or more against this position "
+                f"{within} on {hit_rate_pct:.0f}% of occasions."
             )
         signals.append(Signal("history", lvl, "How often has that move happened?", detail))
 
-    # 7. Time decay.
+    # 7. Time decay, over the time you actually hold.
+    hold_decay_pct = None
     if entry_price > 0:
         tpct = 100.0 * abs(theta_per_day) / entry_price
+        if decay_cost_hold is not None:
+            cost = max(0.0, decay_cost_hold)
+        else:
+            cost = abs(theta_per_day) * max(holding_days, 0.0)
+        hold_decay_pct = 100.0 * cost / entry_price
+        span = "into expiry" if held_to_expiry else f"over your {holding_days:g} day(s)"
+        full_day = f" Theta for a full day is {abs(theta_per_day):.2f} ({tpct:.1f}%)."
         if buyer:
-            lvl = RED if tpct >= 10 else AMBER if tpct >= 5 else GREEN
-            detail = f"Theta costs {abs(theta_per_day):.2f} per day ({tpct:.1f}% of the premium) while you wait."
+            lvl = RED if hold_decay_pct >= 25 else AMBER if hold_decay_pct >= 10 else GREEN
+            detail = (
+                f"If the underlying does not move, time decay takes {cost:.2f} per unit {span} "
+                f"({hold_decay_pct:.1f}% of the premium).{full_day}"
+            )
+            if held_to_expiry:
+                detail += " Held into expiry, all the time value left in the premium is gone."
         else:
             lvl = GREEN
-            detail = f"Theta earns {abs(theta_per_day):.2f} per day ({tpct:.1f}% of the premium)."
+            detail = (
+                f"If the underlying does not move, time decay earns {cost:.2f} per unit {span} "
+                f"({hold_decay_pct:.1f}% of the premium).{full_day}"
+            )
         signals.append(Signal("theta", lvl, "Time decay (Theta)", detail))
 
     # Overall
     reds = [s for s in signals if s.level == RED]
     ambers = [s for s in signals if s.level == AMBER]
-    if any(s.critical for s in reds) or len(reds) >= 2:
+    if any(s.critical for s in reds):
+        level = RED
+    elif len(reds) >= 2 and pnl_level != GREEN:
         level = RED
     elif reds or len(ambers) >= 2:
+        # A position that pays well at the target is never "avoid" on the
+        # strength of side warnings alone: those are about how the move has to
+        # come (soon, large enough), not about the view being wrong.
         level = AMBER
     else:
         level = GREEN
@@ -592,6 +630,11 @@ def build_verdict(
             else "Selling this option carries more risk than the premium pays for."
         ),
     }[level]
+    if level == AMBER and pnl_level == GREEN and reds:
+        headline = (
+            f"{action} this option pays well if your move comes, but the red flags below can still cost you "
+            "if it comes late or smaller."
+        )
     if quote_stale:
         headline = "This option's price looks stale, so the check cannot be trusted. Pick a traded strike or expiry."
 
@@ -612,9 +655,10 @@ def build_verdict(
             suggestions.append(
                 "Options are expensive versus realised movement -- consider a spread instead of a naked buy."
             )
-        if entry_price and abs(theta_per_day) / entry_price >= 0.05:
+        if hold_decay_pct is not None and hold_decay_pct >= 10:
             suggestions.append(
-                "Theta is heavy: pick a later expiry or a closer-to-the-money strike."
+                "Time decay is heavy over your holding period, so the move has to come soon. A later expiry "
+                "or a closer-to-the-money strike decays more slowly."
             )
         if breakeven_pct is not None and abs(target_move_pct) < abs(breakeven_pct):
             suggestions.append(

@@ -29,6 +29,7 @@ from services.option_safety_math import (
     iv_axis,
     move_axis,
     move_frequency,
+    option_price,
     percentile_of,
     position_pnl,
     priced_move_over_hold,
@@ -289,6 +290,7 @@ def get_option_safety_check(
     r_pct = float(g.get("interest_rate") or 0)
     dte = float(g.get("days_to_expiry") or 0)
     t_now = max(dte / 365.0, MIN_T)
+    entry_model = option_price(option_type, fwd, strike, t_now, r_pct, iv_now)
     greeks = g.get("greeks", {})
     vega = float(greeks.get("vega") or 0)
     theta = float(greeks.get("theta") or 0)
@@ -372,6 +374,11 @@ def get_option_safety_check(
         max(1, round(holding_days * 5 / 7)) if periods == 252 else max(1, round(holding_days))
     )
     hit_rate = move_frequency(closes, trading_days, be) if be not in (None, 0.0) else None
+    # What time decay alone takes over the hold if nothing moves (model price,
+    # IV unchanged): exact where theta x days is not, since decay speeds up
+    # into expiry.
+    held_to_expiry = holding_days >= dte
+    decay_cost = entry_model - option_price(option_type, fwd, strike, t_after, r_pct, iv_now)
 
     verdict = build_verdict(
         side=side,
@@ -396,6 +403,9 @@ def get_option_safety_check(
         priced_move_hold=priced_hold,
         quote_stale=quote_stale,
         spread_pct=spread_pct,
+        decay_cost_hold=decay_cost,
+        held_to_expiry=held_to_expiry,
+        history_horizon_days=trading_days,
     )
 
     span = max(
@@ -500,6 +510,10 @@ def get_option_safety_check(
             "breakeven_move_pct": None if be is None else round(be * 100, 3),
             "breakeven_move_no_crush_pct": None if be_nc is None else round(be_nc * 100, 3),
             "historical_hit_rate_pct": None if hit_rate is None else round(hit_rate, 1),
+            "history_horizon_days": trading_days,
+            "decay_cost_hold": round(decay_cost, 4),
+            "decay_cost_hold_pct": round(100 * decay_cost / entry, 2) if entry else None,
+            "held_to_expiry": held_to_expiry,
         },
         "heatmap": {
             "moves_pct": [round(m * 100, 3) for m in moves],

@@ -62,6 +62,10 @@ export interface SafetyCheckData {
     breakeven_move_pct: number | null
     breakeven_move_no_crush_pct: number | null
     historical_hit_rate_pct: number | null
+    history_horizon_days: number
+    decay_cost_hold: number
+    decay_cost_hold_pct: number | null
+    held_to_expiry: boolean
   }
   heatmap: { moves_pct: number[]; ivs: number[]; pnl: number[][] }
   decay_path: { day: number; pnl_flat_iv: number; pnl_crushed_iv: number }[]

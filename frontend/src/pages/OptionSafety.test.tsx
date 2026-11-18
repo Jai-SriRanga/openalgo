@@ -92,6 +92,10 @@ const data: SafetyCheckData = {
     breakeven_move_pct: 3.36,
     breakeven_move_no_crush_pct: 0.4,
     historical_hit_rate_pct: 8,
+    history_horizon_days: 1,
+    decay_cost_hold: 1.7,
+    decay_cost_hold_pct: 3.6,
+    held_to_expiry: false,
   },
   heatmap: {
     moves_pct: [-2, 0, 2],

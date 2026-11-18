@@ -308,3 +308,59 @@ def test_expiry_day_kink_is_not_an_event():
     # results-style kink: clearly an event
     assert is_material_event(event_from_term_structure(60, 7 * DAY, 30, 35 * DAY))
     assert not is_material_event(None)
+
+
+def test_paying_target_is_never_avoid_on_side_warnings():
+    # live SENSEX expiry-day put: +188 % at the target, but IV percentile and decay both red
+    v = _verdict(
+        flag="PE",
+        entry_price=271.9,
+        iv_now=18.2,
+        iv_after=18.2,
+        hv20=14.5,
+        iv_vs_hv_percentile=88,
+        term_gap=3.5,
+        event_detected=False,
+        implied_move=0.76,
+        priced_move_hold=0.76,
+        target_move_pct=-1.0,
+        pnl_at_target=512.5,
+        pnl_at_target_no_crush=512.5,
+        breakeven_pct=-0.11,
+        theta_per_day=-154.5,
+        holding_days=1,
+        decay_cost_hold=271.9,
+        held_to_expiry=True,
+        hit_rate_pct=44,
+        history_horizon_days=1,
+    )
+    by_key = {s.key: s for s in v.signals}
+    assert by_key["iv_rank"].level == RED and by_key["theta"].level == RED
+    assert v.level == "amber"
+    assert "pays well if your move comes" in v.headline
+    assert "even if your direction is right" not in v.headline
+    assert "into expiry" in by_key["theta"].detail
+
+
+def test_theta_judged_over_the_holding_period():
+    # 57 % a day, but a quarter-day hold costs 15 %: amber, and the text says so
+    v = _verdict(
+        entry_price=271.9,
+        theta_per_day=-154.5,
+        holding_days=0.25,
+        decay_cost_hold=40.8,
+        pnl_at_target=512.5,
+        pnl_at_target_no_crush=512.5,
+    )
+    theta = {s.key: s for s in v.signals}["theta"]
+    assert theta.level == "amber"
+    assert "over your 0.25 day(s) (15.0% of the premium)" in theta.detail
+    assert "full day is 154.50 (56.8%)" in theta.detail
+
+
+def test_history_text_names_the_span_it_measured():
+    v = _verdict(holding_days=0.25, history_horizon_days=1, hit_rate_pct=44, breakeven_pct=-0.11)
+    detail = {s.key: s for s in v.signals}["history"].detail
+    assert "within 1 trading day " in detail
+    assert "0.25" not in detail
+    assert "whole days" in detail
